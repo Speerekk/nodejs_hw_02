@@ -5,6 +5,7 @@ const {
   createContactSchema,
   updateContactSchema,
 } = require("../path-to-schemas");
+const nodemailer = require("nodemailer");
 
 const register = async (req, res, next) => {
   try {
@@ -81,4 +82,49 @@ const avatarURL = gravatar.url(email, { s: "250", d: "retro" });
 const user = new User({ email, password, avatarURL, subscription });
 await user.save();
 
-module.exports = { register, login, logout, currentUser, gravatar };
+const createContact = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const verificationToken = uuidv4();
+
+    const transporter = nodemailer.createTransport({
+      service: "Gmail",
+      auth: {
+        user: "your-email@gmail.com",
+        pass: "your-password",
+      },
+    });
+
+    const mailOptions = {
+      from: "your-email@gmail.com",
+      to: email,
+      subject: "Email Verification",
+      text: `Please verify your email by clicking this link: http://your-app-url.com/users/verify/${verificationToken}`,
+    };
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const user = new User({
+      email,
+      password: hashedPassword,
+      verificationToken,
+    });
+
+    await user.save();
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error("Email sending error:", error);
+      } else {
+        console.log("Email sent:", info.response);
+      }
+    });
+
+    res
+      .status(201)
+      .json({ user: { email: user.email, subscription: user.subscription } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { register, login, logout, currentUser, gravatar, nodemailer };
