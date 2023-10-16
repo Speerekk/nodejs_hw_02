@@ -49,4 +49,49 @@ app.listen(PORT, () => {
 
 app.use("/avatars", avatarsRouter);
 
+app.post("/users/verify", async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  if (user.verify) {
+    return res
+      .status(400)
+      .json({ message: "Verification has already been passed" });
+  }
+
+  const verificationToken = uuidv4();
+
+  const transporter = nodemailer.createTransport({
+    service: "Gmail",
+    auth: {
+      user: "your-email@gmail.com",
+      pass: "your-password",
+    },
+  });
+
+  const mailOptions = {
+    from: "your-email@gmail.com",
+    to: email,
+    subject: "Email Verification",
+    text: `Please verify your email by clicking this link: http://your-app-url.com/users/verify/${verificationToken}`,
+  };
+
+  user.verificationToken = verificationToken;
+  await user.save();
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error("Email sending error:", error);
+    } else {
+      console.log("Email sent:", info.response);
+    }
+  });
+
+  return res.status(200).json({ message: "Verification email sent" });
+});
+
 module.exports = app;
